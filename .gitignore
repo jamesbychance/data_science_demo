@@ -205,3 +205,7 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# ADDED by developer
+binance_raw_data/
+project_roadmap.md
