@@ -25,13 +25,14 @@ data_science_demo/
 ├── .gitignore                         # Exclude data files
 │
 ├── notebooks/
-│   └── 01_data_collection.ipynb       # ✅ Tick data collection from Binance
+│    ├── 01_data_collection.ipynb      # ✅ Tick data collection from Binance 
+│    └── 02_information_bars.ipynb     # ✅ Better statiscical properties
 │
 ├── src/                               # Production-ready scripts
-│   ├── 01_data_collection.py          # Automated data collection
-│   ├── 02a_standard_bars.py           # Tick/volume/dollar bars
-│   ├── 02b_imbalance_bars.py          # Tick/volume/dollar imbalance bars
-│   ├── 02c_runs_bars.py               # Tick/volume/dollar runs bars
+│   ├── data_collection.py             # Automated data collection
+│   ├── standard_bars.py               # Tick/volume/dollar bars
+│   ├── imbalance_bars.py              # Tick/volume/dollar imbalance bars
+│   ├── runs_bars.py                   # Tick/volume/dollar runs bars
 │   └── utils/
 │       ├── bar_utils.py               # Shared bar construction utilities
 │       └── data_loader.py             # Data loading utilities
@@ -84,10 +85,10 @@ jupyter lab
 
 **Option 2: Using Python Script** (Automated/production)
 ```bash
-python src/01_data_collection.py
+python src/data_collection.py
 ```
 
-This collects 2 months of tick-level trade data for 4 assets with different liquidity profiles:
+This collects 3 months of tick-level trade data for 4 assets with different liquidity profiles:
 - **BTCUSDT** - High liquidity (~100k trades/day)
 - **ETHUSDT** - High liquidity (~80k trades/day)
 - **SOLUSDT** - Medium liquidity (~30k trades/day)
@@ -105,28 +106,28 @@ After collecting raw data, transform it into information-driven bars:
 **Standard Bars (Time, Tick, Volume, Dollar):**
 ```bash
 # Default: BTCUSDT, last 7 days
-python src/02a_standard_bars.py
+python src/standard_bars.py
 
 # Specify asset
-python src/02a_standard_bars.py ETHUSDT
+python src/standard_bars.py ETHUSDT
 
 # Specify asset and time window
-python src/02a_standard_bars.py SOLUSDT --days 14
+python src/standard_bars.py SOLUSDT --days 14
 
 # Custom thresholds
-python src/02a_standard_bars.py BTCUSDT --tick-threshold 1000 --volume-threshold 100 --dollar-threshold 1000000
+python src/standard_bars.py BTCUSDT --tick-threshold 1000 --volume-threshold 100 --dollar-threshold 1000000
 ```
 
 **Imbalance Bars (Tick/Volume/Dollar Imbalance):**
 ```bash
-python src/02b_imbalance_bars.py BTCUSDT
-python src/02b_imbalance_bars.py ETHUSDT --days 14
+python src/imbalance_bars.py BTCUSDT
+python src/imbalance_bars.py ETHUSDT --days 14
 ```
 
 **Runs Bars (Tick/Volume/Dollar Runs):**
 ```bash
-python src/02c_runs_bars.py BTCUSDT
-python src/02c_runs_bars.py SOLUSDT --days 7
+python src/runs_bars.py BTCUSDT
+python src/runs_bars.py SOLUSDT --days 7
 ```
 
 **Available Symbols:** BTCUSDT, ETHUSDT, SOLUSDT, POWRUSDT
