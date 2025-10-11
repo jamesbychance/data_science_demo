@@ -7,6 +7,43 @@ Implements standard alternative sampling methods:
 - Tick Bars: Sample every T ticks
 - Volume Bars: Sample every T volume
 - Dollar Bars: Sample every T dollar value traded
+
+THRESHOLD GUIDANCE:
+-------------------
+The default thresholds are calibrated for BTCUSDT based on 60 days of historical data.
+For other assets or different sampling frequencies, you should adjust these thresholds.
+
+TARGET: Aim for 50-300 bars per day depending on your use case:
+  - Low frequency (50-100 bars/day): Swing trading, daily analysis
+  - Medium frequency (100-200 bars/day): Intraday strategies
+  - High frequency (200-300 bars/day): Scalping, microstructure analysis
+
+HOW TO CALIBRATE:
+1. Analyze your tick data to get:
+   - Total ticks per day
+   - Total volume per day
+   - Total dollar value per day
+
+2. Calculate thresholds:
+   - Tick threshold = ticks_per_day / target_bars_per_day
+   - Volume threshold = volume_per_day / target_bars_per_day
+   - Dollar threshold = dollar_per_day / target_bars_per_day
+
+3. Test and iterate:
+   - Run bar generation on sample period (7 days)
+   - Count actual bars generated per day
+   - Adjust thresholds if needed
+
+EXAMPLES (for reference):
+  BTCUSDT (price ~$115k, ~780k ticks/day):
+    --tick-threshold 2500      # → ~310 bars/day
+    --volume-threshold 125.0   # → ~120 bars/day
+    --dollar-threshold 10000000 # → ~170 bars/day
+
+  ETHUSDT (price ~$2.5k): Scale thresholds proportionally
+    --dollar-threshold ~370000  # Scales with price difference
+
+  Lower volume assets (POWRUSDT): Reduce all thresholds significantly
 """
 
 # ============================================================================
@@ -26,7 +63,7 @@ from utils.data_loader import load_binance_data, get_available_symbols
 
 def _accumulate_bars(df: pd.DataFrame, threshold: float, value_column: str = None) -> pd.DataFrame:
     """
-    Generic bar accumulation based on a threshold.
+    Vectorized bar accumulation based on a threshold.
 
     Parameters
     ----------
@@ -42,58 +79,47 @@ def _accumulate_bars(df: pd.DataFrame, threshold: float, value_column: str = Non
     pd.DataFrame
         OHLCV bars with tick_count
     """
+    # Calculate increment for each row
+    if value_column == 'dollar':
+        increments = (df['price'] * df['volume']).values
+    elif value_column == 'volume':
+        increments = df['volume'].values
+    else:  # tick bars
+        increments = np.ones(len(df))
+    
+    # Cumulative sum and find bar boundaries
+    cumsum = np.cumsum(increments)
+    bar_indices = np.searchsorted(cumsum, np.arange(threshold, cumsum[-1], threshold), side='right')
+    
+    # Add start and end
+    bar_indices = np.concatenate([[0], bar_indices, [len(df)]])
+    
+    # Build bars
     bars = []
-    accumulator = 0.0
-    bar_data = []
-
-    for _, row in df.iterrows():
-        bar_data.append(row)
-
-        # Calculate increment based on bar type
-        if value_column == 'dollar':
-            increment = row['price'] * row.get('volume', 0.0)
-        elif value_column == 'volume':
-            increment = row.get('volume', 0.0)
-        else:  # tick bars
-            increment = 1.0
-
-        accumulator += increment
-
-        # Create bar when threshold reached
-        if accumulator >= threshold:
-            bar_df = pd.DataFrame(bar_data)
-            bars.append({
-                'timestamp': bar_df['timestamp'].iloc[-1],
-                'open': bar_df['price'].iloc[0],
-                'high': bar_df['price'].max(),
-                'low': bar_df['price'].min(),
-                'close': bar_df['price'].iloc[-1],
-                'volume': bar_df.get('volume', pd.Series([0])).sum(),
-                'tick_count': len(bar_df)
-            })
-            accumulator = 0.0
-            bar_data = []
-
-    # Add partial bar if exists
-    if bar_data:
-        bar_df = pd.DataFrame(bar_data)
+    for i in range(len(bar_indices) - 1):
+        start_idx = bar_indices[i]
+        end_idx = bar_indices[i + 1]
+        
+        if start_idx >= end_idx:
+            continue
+            
+        bar_slice = df.iloc[start_idx:end_idx]
         bars.append({
-            'timestamp': bar_df['timestamp'].iloc[-1],
-            'open': bar_df['price'].iloc[0],
-            'high': bar_df['price'].max(),
-            'low': bar_df['price'].min(),
-            'close': bar_df['price'].iloc[-1],
-            'volume': bar_df.get('volume', pd.Series([0])).sum(),
-            'tick_count': len(bar_df)
+            'timestamp': bar_slice['timestamp'].iloc[-1],
+            'open': bar_slice['price'].iloc[0],
+            'high': bar_slice['price'].max(),
+            'low': bar_slice['price'].min(),
+            'close': bar_slice['price'].iloc[-1],
+            'volume': bar_slice['volume'].sum(),
+            'tick_count': len(bar_slice)
         })
-
+    
     return pd.DataFrame(bars).set_index('timestamp')
 
 
 def tick_bars(df: pd.DataFrame, threshold: int = 1000) -> pd.DataFrame:
     """Sample tick bars: aggregate every T ticks."""
     return _accumulate_bars(df, threshold, value_column=None)
-
 
 def volume_bars(df: pd.DataFrame, threshold: float = 1e6) -> pd.DataFrame:
     """Sample volume bars: aggregate every T volume traded."""
@@ -131,20 +157,20 @@ if __name__ == '__main__':
     parser.add_argument(
         '--tick-threshold',
         type=int,
-        default=1000,
-        help='Tick bar threshold (default: 1000)'
+        default=2500,
+        help='Tick bar threshold (default: 2500)'
     )
     parser.add_argument(
         '--volume-threshold',
         type=float,
-        default=50.0,
-        help='Volume bar threshold (default: 50.0)'
+        default=125.0,
+        help='Volume bar threshold (default: 125.0)'
     )
     parser.add_argument(
         '--dollar-threshold',
         type=float,
-        default=5e6,
-        help='Dollar bar threshold (default: 5000000)'
+        default=10e6,
+        help='Dollar bar threshold (default: 10000000)'
     )
 
     args = parser.parse_args()

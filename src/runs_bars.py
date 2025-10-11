@@ -7,6 +7,53 @@ Implements runs-based sampling (Section 2.3.3):
 - Tick Runs Bars
 - Volume Runs Bars
 - Dollar Runs Bars
+
+THRESHOLD GUIDANCE:
+-------------------
+Runs bars sample when consecutive buys/sells exceed expected run lengths.
+They detect momentum, trend exhaustion, and directional flow.
+
+The --expected-window parameter sets the baseline, but the actual thresholds
+are calculated using HARDCODED MULTIPLIERS in the code:
+  - Volume runs: threshold = expected_window * 10
+  - Dollar runs: threshold = expected_window * 400
+
+TARGET OUTPUT:
+  - Dollar Runs Bars: ~100-500 bars over 60 days
+  - Captures momentum shifts and sustained directional moves
+  - MORE bars during trending markets (strong runs)
+  - FEWER bars during choppy, directionless markets
+
+HOW TO CALIBRATE:
+1. Start with expected-window = 100 (default for BTCUSDT)
+2. Run on sample data (7-60 days)
+3. Check output:
+   - Too few bars (<50 total)? DECREASE expected-window OR reduce multipliers
+   - Too many bars (>1000 total)? INCREASE expected-window OR increase multipliers
+   - Just right (100-500)? Keep current setting
+
+IMPORTANT - HARDCODED MULTIPLIERS:
+The multipliers (10 for volume, 400 for dollar) are set in the code at:
+  - Line ~232: threshold = expected_T * 10  (volume runs)
+  - Line ~331: threshold = expected_T * 400 (dollar runs)
+
+To adjust for different assets:
+  - High volatility assets (SOL, POWR): Use LOWER multipliers (200-300)
+  - Low volatility assets (BTC, ETH): Use HIGHER multipliers (400-600)
+  - The multiplier controls how long a run must be to trigger a bar
+
+EXAMPLES:
+  BTCUSDT (stable, high liquidity):
+    --expected-window 100
+    # With multiplier=400 → Dollar threshold = $40k per run
+
+  SOLUSDT (more volatile):
+    --expected-window 100
+    # Consider reducing multiplier to 300 in code for more bars
+
+  Low liquidity assets:
+    --expected-window 150
+    # And consider reducing multipliers in code
 """
 
 # ============================================================================
@@ -49,8 +96,14 @@ def tick_runs_bars(df: pd.DataFrame,
     df = df.copy()
     df['b_t'] = apply_tick_rule(df['price'])
 
+    # Extract numpy arrays for faster iteration
+    timestamps = df['timestamp'].values
+    prices = df['price'].values
+    volumes = df['volume'].values if 'volume' in df.columns else np.zeros(len(df))
+    b_t_values = df['b_t'].values
+
     bars = []
-    bar_data = []
+    bar_start_idx = 0
 
     expected_T = expected_runs_window
     prev_T_values = []
@@ -59,11 +112,9 @@ def tick_runs_bars(df: pd.DataFrame,
     buy_run = 0
     sell_run = 0
 
-    for idx, row in df.iterrows():
-        bar_data.append(row)
-
+    for i in range(len(df)):
         # Update run counts
-        if row['b_t'] == 1:
+        if b_t_values[i] == 1:
             buy_run += 1
             sell_run = 0
         else:
@@ -81,39 +132,47 @@ def tick_runs_bars(df: pd.DataFrame,
         expected_run = expected_T * max(P_buy, 1 - P_buy)
 
         if theta_t >= max(expected_run, expected_T * 0.3):
-            bar_df = pd.DataFrame(bar_data)
+            bar_end_idx = i + 1
+
+            # Extract bar data using array slicing
+            bar_prices = prices[bar_start_idx:bar_end_idx]
+            bar_volumes = volumes[bar_start_idx:bar_end_idx]
+            bar_b_t = b_t_values[bar_start_idx:bar_end_idx]
 
             bars.append({
-                'timestamp': bar_df['timestamp'].iloc[-1],
-                'open': bar_df['price'].iloc[0],
-                'high': bar_df['price'].max(),
-                'low': bar_df['price'].min(),
-                'close': bar_df['price'].iloc[-1],
-                'volume': bar_df.get('volume', pd.Series([0])).sum(),
-                'tick_count': len(bar_df),
+                'timestamp': timestamps[i],
+                'open': bar_prices[0],
+                'high': bar_prices.max(),
+                'low': bar_prices.min(),
+                'close': bar_prices[-1],
+                'volume': bar_volumes.sum(),
+                'tick_count': bar_end_idx - bar_start_idx,
                 'max_run': theta_t
             })
 
-            prev_T_values.append(len(bar_df))
-            prev_P_buy.append((bar_df['b_t'] == 1).sum() / len(bar_df))
+            prev_T_values.append(bar_end_idx - bar_start_idx)
+            prev_P_buy.append((bar_b_t == 1).sum() / len(bar_b_t))
 
             if len(prev_T_values) > num_prev_bars:
                 expected_T = np.mean(prev_T_values[-num_prev_bars:])
 
-            bar_data = []
+            bar_start_idx = bar_end_idx
             buy_run = 0
             sell_run = 0
 
-    if bar_data:
-        bar_df = pd.DataFrame(bar_data)
+    # Handle remaining data
+    if bar_start_idx < len(df):
+        bar_prices = prices[bar_start_idx:]
+        bar_volumes = volumes[bar_start_idx:]
+
         bars.append({
-            'timestamp': bar_df['timestamp'].iloc[-1],
-            'open': bar_df['price'].iloc[0],
-            'high': bar_df['price'].max(),
-            'low': bar_df['price'].min(),
-            'close': bar_df['price'].iloc[-1],
-            'volume': bar_df.get('volume', pd.Series([0])).sum(),
-            'tick_count': len(bar_df),
+            'timestamp': timestamps[-1],
+            'open': bar_prices[0],
+            'high': bar_prices.max(),
+            'low': bar_prices.min(),
+            'close': bar_prices[-1],
+            'volume': bar_volumes.sum(),
+            'tick_count': len(df) - bar_start_idx,
             'max_run': max(buy_run, sell_run)
         })
 
@@ -143,8 +202,14 @@ def volume_runs_bars(df: pd.DataFrame,
     df = df.copy()
     df['b_t'] = apply_tick_rule(df['price'])
 
+    # Extract numpy arrays for faster iteration
+    timestamps = df['timestamp'].values
+    prices = df['price'].values
+    volumes = df['volume'].values if 'volume' in df.columns else np.zeros(len(df))
+    b_t_values = df['b_t'].values
+
     bars = []
-    bar_data = []
+    bar_start_idx = 0
 
     expected_T = expected_runs_window
     prev_T_values = []
@@ -152,54 +217,59 @@ def volume_runs_bars(df: pd.DataFrame,
     buy_volume_run = 0
     sell_volume_run = 0
 
-    for idx, row in df.iterrows():
-        bar_data.append(row)
-        volume = row.get('volume', 0.0)
-
-        if row['b_t'] == 1:
-            buy_volume_run += volume
+    for i in range(len(df)):
+        # Update volume-weighted runs
+        if b_t_values[i] == 1:
+            buy_volume_run += volumes[i]
             sell_volume_run = 0
         else:
-            sell_volume_run += volume
+            sell_volume_run += volumes[i]
             buy_volume_run = 0
 
         theta_t = max(buy_volume_run, sell_volume_run)
 
         # Simple threshold based on expected T
-        threshold = expected_T * 100  # Scale for volume
+        threshold = expected_T * 10  # Scale for volume
 
         if theta_t >= threshold:
-            bar_df = pd.DataFrame(bar_data)
+            bar_end_idx = i + 1
+
+            # Extract bar data using array slicing
+            bar_prices = prices[bar_start_idx:bar_end_idx]
+            bar_volumes = volumes[bar_start_idx:bar_end_idx]
 
             bars.append({
-                'timestamp': bar_df['timestamp'].iloc[-1],
-                'open': bar_df['price'].iloc[0],
-                'high': bar_df['price'].max(),
-                'low': bar_df['price'].min(),
-                'close': bar_df['price'].iloc[-1],
-                'volume': bar_df.get('volume', pd.Series([0])).sum(),
-                'tick_count': len(bar_df),
+                'timestamp': timestamps[i],
+                'open': bar_prices[0],
+                'high': bar_prices.max(),
+                'low': bar_prices.min(),
+                'close': bar_prices[-1],
+                'volume': bar_volumes.sum(),
+                'tick_count': bar_end_idx - bar_start_idx,
                 'max_volume_run': theta_t
             })
 
-            prev_T_values.append(len(bar_df))
+            prev_T_values.append(bar_end_idx - bar_start_idx)
             if len(prev_T_values) > num_prev_bars:
                 expected_T = np.mean(prev_T_values[-num_prev_bars:])
 
-            bar_data = []
+            bar_start_idx = bar_end_idx
             buy_volume_run = 0
             sell_volume_run = 0
 
-    if bar_data:
-        bar_df = pd.DataFrame(bar_data)
+    # Handle remaining data
+    if bar_start_idx < len(df):
+        bar_prices = prices[bar_start_idx:]
+        bar_volumes = volumes[bar_start_idx:]
+
         bars.append({
-            'timestamp': bar_df['timestamp'].iloc[-1],
-            'open': bar_df['price'].iloc[0],
-            'high': bar_df['price'].max(),
-            'low': bar_df['price'].min(),
-            'close': bar_df['price'].iloc[-1],
-            'volume': bar_df.get('volume', pd.Series([0])).sum(),
-            'tick_count': len(bar_df),
+            'timestamp': timestamps[-1],
+            'open': bar_prices[0],
+            'high': bar_prices.max(),
+            'low': bar_prices.min(),
+            'close': bar_prices[-1],
+            'volume': bar_volumes.sum(),
+            'tick_count': len(df) - bar_start_idx,
             'max_volume_run': max(buy_volume_run, sell_volume_run)
         })
 
@@ -229,8 +299,14 @@ def dollar_runs_bars(df: pd.DataFrame,
     df = df.copy()
     df['b_t'] = apply_tick_rule(df['price'])
 
+    # Extract numpy arrays for faster iteration
+    timestamps = df['timestamp'].values
+    prices = df['price'].values
+    volumes = df['volume'].values if 'volume' in df.columns else np.zeros(len(df))
+    b_t_values = df['b_t'].values
+
     bars = []
-    bar_data = []
+    bar_start_idx = 0
 
     expected_T = expected_runs_window
     prev_T_values = []
@@ -238,11 +314,11 @@ def dollar_runs_bars(df: pd.DataFrame,
     buy_dollar_run = 0
     sell_dollar_run = 0
 
-    for idx, row in df.iterrows():
-        bar_data.append(row)
-        dollar_value = row['price'] * row.get('volume', 0.0)
+    for i in range(len(df)):
+        dollar_value = prices[i] * volumes[i]
 
-        if row['b_t'] == 1:
+        # Update dollar-weighted runs
+        if b_t_values[i] == 1:
             buy_dollar_run += dollar_value
             sell_dollar_run = 0
         else:
@@ -252,40 +328,47 @@ def dollar_runs_bars(df: pd.DataFrame,
         theta_t = max(buy_dollar_run, sell_dollar_run)
 
         # Scale threshold for dollar values
-        threshold = expected_T * 10000  # Adjust based on typical dollar values
+        threshold = expected_T * 400  # Adjust based on typical dollar values
 
         if theta_t >= threshold:
-            bar_df = pd.DataFrame(bar_data)
+            bar_end_idx = i + 1
+
+            # Extract bar data using array slicing
+            bar_prices = prices[bar_start_idx:bar_end_idx]
+            bar_volumes = volumes[bar_start_idx:bar_end_idx]
 
             bars.append({
-                'timestamp': bar_df['timestamp'].iloc[-1],
-                'open': bar_df['price'].iloc[0],
-                'high': bar_df['price'].max(),
-                'low': bar_df['price'].min(),
-                'close': bar_df['price'].iloc[-1],
-                'volume': bar_df.get('volume', pd.Series([0])).sum(),
-                'tick_count': len(bar_df),
+                'timestamp': timestamps[i],
+                'open': bar_prices[0],
+                'high': bar_prices.max(),
+                'low': bar_prices.min(),
+                'close': bar_prices[-1],
+                'volume': bar_volumes.sum(),
+                'tick_count': bar_end_idx - bar_start_idx,
                 'max_dollar_run': theta_t
             })
 
-            prev_T_values.append(len(bar_df))
+            prev_T_values.append(bar_end_idx - bar_start_idx)
             if len(prev_T_values) > num_prev_bars:
                 expected_T = np.mean(prev_T_values[-num_prev_bars:])
 
-            bar_data = []
+            bar_start_idx = bar_end_idx
             buy_dollar_run = 0
             sell_dollar_run = 0
 
-    if bar_data:
-        bar_df = pd.DataFrame(bar_data)
+    # Handle remaining data
+    if bar_start_idx < len(df):
+        bar_prices = prices[bar_start_idx:]
+        bar_volumes = volumes[bar_start_idx:]
+
         bars.append({
-            'timestamp': bar_df['timestamp'].iloc[-1],
-            'open': bar_df['price'].iloc[0],
-            'high': bar_df['price'].max(),
-            'low': bar_df['price'].min(),
-            'close': bar_df['price'].iloc[-1],
-            'volume': bar_df.get('volume', pd.Series([0])).sum(),
-            'tick_count': len(bar_df),
+            'timestamp': timestamps[-1],
+            'open': bar_prices[0],
+            'high': bar_prices.max(),
+            'low': bar_prices.min(),
+            'close': bar_prices[-1],
+            'volume': bar_volumes.sum(),
+            'tick_count': len(df) - bar_start_idx,
             'max_dollar_run': max(buy_dollar_run, sell_dollar_run)
         })
 
@@ -324,8 +407,8 @@ if __name__ == '__main__':
     parser.add_argument(
         '--expected-window',
         type=int,
-        default=10000,
-        help='Initial expected number of ticks per bar (default: 10000)'
+        default=100,
+        help='Initial expected number of ticks per bar (default: 100)'
     )
 
     args = parser.parse_args()

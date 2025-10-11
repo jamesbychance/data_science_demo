@@ -7,6 +7,44 @@ Implements imbalance-based sampling (Section 2.3.2):
 - Tick Imbalance Bars (TIB)
 - Volume Imbalance Bars (VIB)
 - Dollar Imbalance Bars (DIB)
+
+THRESHOLD GUIDANCE:
+-------------------
+Imbalance bars use an ADAPTIVE threshold based on expected window size.
+They sample when order flow imbalance exceeds expectations.
+
+The --expected-window parameter sets the baseline for adaptation.
+Unlike standard bars, imbalance bars will generate FEWER bars (10-200 total
+over 60 days) because they only trigger when significant order flow imbalances occur.
+
+TARGET OUTPUT:
+  - Dollar Imbalance Bars: ~50-200 bars over 60 days
+  - Captures periods of informed trading and order flow toxicity
+  - Expect MORE bars during volatile periods (crashes, rallies)
+  - Expect FEWER bars during calm, balanced markets
+
+HOW TO CALIBRATE:
+1. Start with expected-window = 100 (default for BTCUSDT)
+2. Run on sample data (7-60 days)
+3. Check output:
+   - Too few bars (<20 total)? DECREASE expected-window to 50-75
+   - Too many bars (>500 total)? INCREASE expected-window to 200-500
+   - Just right (50-200)? Keep current setting
+
+KEY INSIGHT:
+The EWMA mechanism makes these bars naturally adaptive. The expected-window
+is just the starting point - the algorithm learns from the data and adjusts
+thresholds dynamically based on recent imbalance patterns.
+
+EXAMPLES:
+  BTCUSDT (high liquidity, ~780k ticks/day):
+    --expected-window 100  # Good balance for detecting imbalances
+
+  Lower liquidity assets:
+    --expected-window 50  # More sensitive to smaller imbalances
+
+  Very high liquidity (during major events):
+    --expected-window 200  # Reduce noise, focus on major imbalances
 """
 
 # ============================================================================
@@ -50,18 +88,23 @@ def tick_imbalance_bars(df: pd.DataFrame,
     df = df.copy()
     df['b_t'] = apply_tick_rule(df['price'])
 
+    # Extract numpy arrays for faster iteration
+    timestamps = df['timestamp'].values
+    prices = df['price'].values
+    volumes = df['volume'].values if 'volume' in df.columns else np.zeros(len(df))
+    b_t_values = df['b_t'].values
+
     bars = []
     theta_t = 0  # Cumulative tick imbalance
-    bar_data = []
+    bar_start_idx = 0
 
     # Track for EWMA calculations
     expected_T = expected_imbalance_window
     prev_T_values = []
     prev_imbalance_values = []
 
-    for idx, row in df.iterrows():
-        bar_data.append(row)
-        theta_t += row['b_t']
+    for i in range(len(df)):
+        theta_t += b_t_values[i]
 
         # Calculate expected imbalance: E[θ_T] = E[T] * |2P[b_t=1] - 1|
         # Estimate P[b_t=1] from recent history
@@ -74,42 +117,49 @@ def tick_imbalance_bars(df: pd.DataFrame,
         threshold = expected_T * abs(expected_imbalance)
 
         # Sample when |θ_T| >= threshold
-        if abs(theta_t) >= max(threshold, expected_T * 0.5):  # Use minimum threshold
-            bar_df = pd.DataFrame(bar_data)
+        if abs(theta_t) >= max(threshold, expected_T * 0.1):  # Use minimum threshold
+            bar_end_idx = i + 1
+
+            # Extract bar data using array slicing
+            bar_prices = prices[bar_start_idx:bar_end_idx]
+            bar_volumes = volumes[bar_start_idx:bar_end_idx]
+            bar_b_t = b_t_values[bar_start_idx:bar_end_idx]
 
             bars.append({
-                'timestamp': bar_df['timestamp'].iloc[-1],
-                'open': bar_df['price'].iloc[0],
-                'high': bar_df['price'].max(),
-                'low': bar_df['price'].min(),
-                'close': bar_df['price'].iloc[-1],
-                'volume': bar_df.get('volume', pd.Series([0])).sum(),
-                'tick_count': len(bar_df),
+                'timestamp': timestamps[i],
+                'open': bar_prices[0],
+                'high': bar_prices.max(),
+                'low': bar_prices.min(),
+                'close': bar_prices[-1],
+                'volume': bar_volumes.sum(),
+                'tick_count': bar_end_idx - bar_start_idx,
                 'imbalance': theta_t
             })
 
             # Update expected values with EWMA
-            prev_T_values.append(len(bar_df))
-            prev_imbalance_values.append(bar_df['b_t'].mean())
+            prev_T_values.append(bar_end_idx - bar_start_idx)
+            prev_imbalance_values.append(bar_b_t.mean())
 
             if len(prev_T_values) > num_prev_bars:
                 expected_T = np.mean(prev_T_values[-num_prev_bars:])
 
             # Reset
             theta_t = 0
-            bar_data = []
+            bar_start_idx = bar_end_idx
 
     # Handle remaining data
-    if bar_data:
-        bar_df = pd.DataFrame(bar_data)
+    if bar_start_idx < len(df):
+        bar_prices = prices[bar_start_idx:]
+        bar_volumes = volumes[bar_start_idx:]
+
         bars.append({
-            'timestamp': bar_df['timestamp'].iloc[-1],
-            'open': bar_df['price'].iloc[0],
-            'high': bar_df['price'].max(),
-            'low': bar_df['price'].min(),
-            'close': bar_df['price'].iloc[-1],
-            'volume': bar_df.get('volume', pd.Series([0])).sum(),
-            'tick_count': len(bar_df),
+            'timestamp': timestamps[-1],
+            'open': bar_prices[0],
+            'high': bar_prices.max(),
+            'low': bar_prices.min(),
+            'close': bar_prices[-1],
+            'volume': bar_volumes.sum(),
+            'tick_count': len(df) - bar_start_idx,
             'imbalance': theta_t
         })
 
@@ -141,18 +191,22 @@ def volume_imbalance_bars(df: pd.DataFrame,
     df = df.copy()
     df['b_t'] = apply_tick_rule(df['price'])
 
+    # Extract numpy arrays for faster iteration
+    timestamps = df['timestamp'].values
+    prices = df['price'].values
+    volumes = df['volume'].values if 'volume' in df.columns else np.zeros(len(df))
+    b_t_values = df['b_t'].values
+
     bars = []
     theta_t = 0  # Cumulative volume imbalance: Σ(b_t * v_t)
-    bar_data = []
+    bar_start_idx = 0
 
     expected_T = expected_imbalance_window
     prev_T_values = []
     prev_imbalance_values = []
 
-    for idx, row in df.iterrows():
-        bar_data.append(row)
-        volume = row.get('volume', 0.0)
-        theta_t += row['b_t'] * volume
+    for i in range(len(df)):
+        theta_t += b_t_values[i] * volumes[i]
 
         # Expected imbalance calculation
         if len(prev_imbalance_values) > 0:
@@ -162,40 +216,48 @@ def volume_imbalance_bars(df: pd.DataFrame,
 
         threshold = expected_T * abs(expected_imbalance)
 
-        if abs(theta_t) >= max(threshold, expected_T * 0.5):
-            bar_df = pd.DataFrame(bar_data)
+        if abs(theta_t) >= max(threshold, expected_T * 0.1):
+            bar_end_idx = i + 1
+
+            # Extract bar data using array slicing
+            bar_prices = prices[bar_start_idx:bar_end_idx]
+            bar_volumes = volumes[bar_start_idx:bar_end_idx]
+            bar_b_t = b_t_values[bar_start_idx:bar_end_idx]
 
             bars.append({
-                'timestamp': bar_df['timestamp'].iloc[-1],
-                'open': bar_df['price'].iloc[0],
-                'high': bar_df['price'].max(),
-                'low': bar_df['price'].min(),
-                'close': bar_df['price'].iloc[-1],
-                'volume': bar_df.get('volume', pd.Series([0])).sum(),
-                'tick_count': len(bar_df),
+                'timestamp': timestamps[i],
+                'open': bar_prices[0],
+                'high': bar_prices.max(),
+                'low': bar_prices.min(),
+                'close': bar_prices[-1],
+                'volume': bar_volumes.sum(),
+                'tick_count': bar_end_idx - bar_start_idx,
                 'imbalance': theta_t
             })
 
-            prev_T_values.append(len(bar_df))
+            prev_T_values.append(bar_end_idx - bar_start_idx)
             # Track b_t * v_t average
-            prev_imbalance_values.append((bar_df['b_t'] * bar_df.get('volume', 0)).mean())
+            prev_imbalance_values.append((bar_b_t * bar_volumes).mean())
 
             if len(prev_T_values) > num_prev_bars:
                 expected_T = np.mean(prev_T_values[-num_prev_bars:])
 
             theta_t = 0
-            bar_data = []
+            bar_start_idx = bar_end_idx
 
-    if bar_data:
-        bar_df = pd.DataFrame(bar_data)
+    # Handle remaining data
+    if bar_start_idx < len(df):
+        bar_prices = prices[bar_start_idx:]
+        bar_volumes = volumes[bar_start_idx:]
+
         bars.append({
-            'timestamp': bar_df['timestamp'].iloc[-1],
-            'open': bar_df['price'].iloc[0],
-            'high': bar_df['price'].max(),
-            'low': bar_df['price'].min(),
-            'close': bar_df['price'].iloc[-1],
-            'volume': bar_df.get('volume', pd.Series([0])).sum(),
-            'tick_count': len(bar_df),
+            'timestamp': timestamps[-1],
+            'open': bar_prices[0],
+            'high': bar_prices.max(),
+            'low': bar_prices.min(),
+            'close': bar_prices[-1],
+            'volume': bar_volumes.sum(),
+            'tick_count': len(df) - bar_start_idx,
             'imbalance': theta_t
         })
 
@@ -227,18 +289,23 @@ def dollar_imbalance_bars(df: pd.DataFrame,
     df = df.copy()
     df['b_t'] = apply_tick_rule(df['price'])
 
+    # Extract numpy arrays for faster iteration
+    timestamps = df['timestamp'].values
+    prices = df['price'].values
+    volumes = df['volume'].values if 'volume' in df.columns else np.zeros(len(df))
+    b_t_values = df['b_t'].values
+
     bars = []
     theta_t = 0  # Cumulative dollar imbalance: Σ(b_t * v_t * price_t)
-    bar_data = []
+    bar_start_idx = 0
 
     expected_T = expected_imbalance_window
     prev_T_values = []
     prev_imbalance_values = []
 
-    for idx, row in df.iterrows():
-        bar_data.append(row)
-        dollar_value = row['price'] * row.get('volume', 0.0)
-        theta_t += row['b_t'] * dollar_value
+    for i in range(len(df)):
+        dollar_value = prices[i] * volumes[i]
+        theta_t += b_t_values[i] * dollar_value
 
         if len(prev_imbalance_values) > 0:
             expected_imbalance = np.mean(prev_imbalance_values[-100:]) if len(prev_imbalance_values) >= 100 else np.mean(prev_imbalance_values)
@@ -247,39 +314,47 @@ def dollar_imbalance_bars(df: pd.DataFrame,
 
         threshold = expected_T * abs(expected_imbalance)
 
-        if abs(theta_t) >= max(threshold, expected_T * 0.5):
-            bar_df = pd.DataFrame(bar_data)
+        if abs(theta_t) >= max(threshold, expected_T * 0.1):
+            bar_end_idx = i + 1
+
+            # Extract bar data using array slicing
+            bar_prices = prices[bar_start_idx:bar_end_idx]
+            bar_volumes = volumes[bar_start_idx:bar_end_idx]
+            bar_b_t = b_t_values[bar_start_idx:bar_end_idx]
 
             bars.append({
-                'timestamp': bar_df['timestamp'].iloc[-1],
-                'open': bar_df['price'].iloc[0],
-                'high': bar_df['price'].max(),
-                'low': bar_df['price'].min(),
-                'close': bar_df['price'].iloc[-1],
-                'volume': bar_df.get('volume', pd.Series([0])).sum(),
-                'tick_count': len(bar_df),
+                'timestamp': timestamps[i],
+                'open': bar_prices[0],
+                'high': bar_prices.max(),
+                'low': bar_prices.min(),
+                'close': bar_prices[-1],
+                'volume': bar_volumes.sum(),
+                'tick_count': bar_end_idx - bar_start_idx,
                 'imbalance': theta_t
             })
 
-            prev_T_values.append(len(bar_df))
-            prev_imbalance_values.append((bar_df['b_t'] * bar_df['price'] * bar_df.get('volume', 0)).mean())
+            prev_T_values.append(bar_end_idx - bar_start_idx)
+            prev_imbalance_values.append((bar_b_t * bar_prices * bar_volumes).mean())
 
             if len(prev_T_values) > num_prev_bars:
                 expected_T = np.mean(prev_T_values[-num_prev_bars:])
 
             theta_t = 0
-            bar_data = []
+            bar_start_idx = bar_end_idx
 
-    if bar_data:
-        bar_df = pd.DataFrame(bar_data)
+    # Handle remaining data
+    if bar_start_idx < len(df):
+        bar_prices = prices[bar_start_idx:]
+        bar_volumes = volumes[bar_start_idx:]
+
         bars.append({
-            'timestamp': bar_df['timestamp'].iloc[-1],
-            'open': bar_df['price'].iloc[0],
-            'high': bar_df['price'].max(),
-            'low': bar_df['price'].min(),
-            'close': bar_df['price'].iloc[-1],
-            'volume': bar_df.get('volume', pd.Series([0])).sum(),
-            'tick_count': len(bar_df),
+            'timestamp': timestamps[-1],
+            'open': bar_prices[0],
+            'high': bar_prices.max(),
+            'low': bar_prices.min(),
+            'close': bar_prices[-1],
+            'volume': bar_volumes.sum(),
+            'tick_count': len(df) - bar_start_idx,
             'imbalance': theta_t
         })
 
@@ -318,8 +393,8 @@ if __name__ == '__main__':
     parser.add_argument(
         '--expected-window',
         type=int,
-        default=10000,
-        help='Initial expected number of ticks per bar (default: 10000)'
+        default=100,
+        help='Initial expected number of ticks per bar (default: 100)'
     )
 
     args = parser.parse_args()

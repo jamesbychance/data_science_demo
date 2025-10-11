@@ -71,8 +71,12 @@ def save_bars(bars: pd.DataFrame,
 
     os.makedirs(output_dir, exist_ok=True)
 
-    # Save bars
-    filename = f'{symbol}_{bar_type}.parquet'
+    # Extract date range from bars index
+    start_date = bars.index[0].strftime('%Y%m%d')
+    end_date = bars.index[-1].strftime('%Y%m%d')
+
+    # Save bars with date range in filename
+    filename = f'{symbol}_{bar_type}_{start_date}_{end_date}.parquet'
     output_path = os.path.join(output_dir, filename)
     bars.to_parquet(output_path, compression='snappy')
 
