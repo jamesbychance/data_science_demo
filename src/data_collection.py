@@ -23,15 +23,57 @@ Structure: binance_raw_data/SYMBOL/YYYY-MM-DD.parquet
 import requests
 import pandas as pd
 import time
+import argparse
 from datetime import datetime, timedelta
 from pathlib import Path
+
+# Parse Command-Line Arguments
+parser = argparse.ArgumentParser(
+    description='Collect tick-level trade data from Binance',
+    formatter_class=argparse.RawDescriptionHelpFormatter,
+    epilog="""
+Examples:
+  python src/data_collection.py --symbols BTCUSDT --months 12
+  python src/data_collection.py --symbols BTCUSDT ETHUSDT SOLUSDT --months 6
+  python src/data_collection.py  # uses defaults
+    """
+)
+
+parser.add_argument(
+    '--symbols',
+    nargs='+',
+    default=['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'POWRUSDT'],
+    help='Symbols to collect (default: BTCUSDT ETHUSDT SOLUSDT POWRUSDT)'
+)
+
+parser.add_argument(
+    '--months',
+    type=int,
+    default=3,
+    help='Number of months to collect (default: 3)'
+)
+
+parser.add_argument(
+    '--output-dir',
+    type=str,
+    default='binance_raw_data',
+    help='Output directory for data (default: binance_raw_data)'
+)
+
+parser.add_argument(
+    '--skip-validation',
+    action='store_true',
+    help='Skip the data validation step at the end'
+)
+
+args = parser.parse_args()
 
 print("✓ Libraries imported")
 
 # Configuration
-SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'POWRUSDT']
-MONTHS = 3
-DATA_DIR = Path(__file__).parent.parent / 'binance_raw_data'
+SYMBOLS = args.symbols
+MONTHS = args.months
+DATA_DIR = Path(__file__).parent.parent / args.output_dir
 BASE_URL = 'https://api.binance.com/api/v3'
 
 print(f"Symbols: {', '.join(SYMBOLS)}")
@@ -171,110 +213,37 @@ print(f"\n✓ Collection complete: {DATA_DIR}/")
 
 # Validate Data
 
-print("\n" + "="*60)
-print("DATA VALIDATION")
-print("="*60)
+if not args.skip_validation:
+    print("\n" + "="*60)
+    print("DATA VALIDATION")
+    print("="*60)
 
-for symbol in SYMBOLS:
-    symbol_dir = DATA_DIR / symbol
-    if not symbol_dir.exists():
-        print(f"\n{symbol}: No data")
-        continue
+    for symbol in SYMBOLS:
+        symbol_dir = DATA_DIR / symbol
+        if not symbol_dir.exists():
+            print(f"\n{symbol}: No data")
+            continue
 
-    # Load all daily files
-    daily_files = sorted(symbol_dir.glob("*.parquet"))
-    dfs = [pd.read_parquet(f) for f in daily_files]
+        # Load all daily files
+        daily_files = sorted(symbol_dir.glob("*.parquet"))
+        dfs = [pd.read_parquet(f) for f in daily_files]
 
-    if not dfs:
-        print(f"\n{symbol}: No data")
-        continue
+        if not dfs:
+            print(f"\n{symbol}: No data")
+            continue
 
-    df = pd.concat(dfs, ignore_index=True)
+        df = pd.concat(dfs, ignore_index=True)
 
-    print(f"\n{symbol}:")
-    print(f"  Days collected: {len(daily_files)}")
-    print(f"  Trades: {len(df):,}")
-    print(f"  Date range: {df['timestamp'].min()} to {df['timestamp'].max()}")
-    print(f"  Price range: ${df['price'].min():.2f} - ${df['price'].max():.2f}")
-    print(f"  Avg trade size: ${df['dollar_volume'].mean():.2f}")
-    print(f"  Total volume: ${df['dollar_volume'].sum():,.0f}")
+        print(f"\n{symbol}:")
+        print(f"  Days collected: {len(daily_files)}")
+        print(f"  Trades: {len(df):,}")
+        print(f"  Date range: {df['timestamp'].min()} to {df['timestamp'].max()}")
+        print(f"  Price range: ${df['price'].min():.2f} - ${df['price'].max():.2f}")
+        print(f"  Avg trade size: ${df['dollar_volume'].mean():.2f}")
+        print(f"  Total volume: ${df['dollar_volume'].sum():,.0f}")
 
-    days = (df['timestamp'].max() - df['timestamp'].min()).days
-    trades_per_day = len(df) / days if days > 0 else 0
-    print(f"  Avg trades/day: {trades_per_day:,.0f}")
+        days = (df['timestamp'].max() - df['timestamp'].min()).days
+        trades_per_day = len(df) / days if days > 0 else 0
+        print(f"  Avg trades/day: {trades_per_day:,.0f}")
 
-# # Detailed statistics for comparison
-# print("\n" + "="*60)
-# print("DETAILED STATISTICS COMPARISON")
-# print("="*60)
-# 
-# for symbol in SYMBOLS:
-#     symbol_dir = DATA_DIR / symbol
-#     if not symbol_dir.exists():
-#         continue
-# 
-#     daily_files = sorted(symbol_dir.glob("*.parquet"))
-#     if not daily_files:
-#         continue
-# 
-#     dfs = [pd.read_parquet(f) for f in daily_files]
-#     df = pd.concat(dfs, ignore_index=True)
-# 
-#     print(f"\n{symbol} - Price & Volume Statistics:")
-#     print(df[['price', 'quantity', 'dollar_volume']].describe())
-# 
-# # Visualise
-# 
-# import matplotlib.pyplot as plt
-# 
-# fig, axes = plt.subplots(len(SYMBOLS), 2, figsize=(14, 3*len(SYMBOLS)))
-# 
-# for idx, symbol in enumerate(SYMBOLS):
-#     symbol_dir = DATA_DIR / symbol
-#     if not symbol_dir.exists():
-#         continue
-# 
-#     daily_files = sorted(symbol_dir.glob("*.parquet"))
-#     if not daily_files:
-#         continue
-# 
-#     dfs = [pd.read_parquet(f) for f in daily_files]
-#     df = pd.concat(dfs, ignore_index=True)
-#     df_sorted = df.sort_values('timestamp').set_index('timestamp')
-# 
-#     # Daily aggregation
-#     daily_close = df_sorted['price'].resample('D').last()
-#     daily_volume = df_sorted['dollar_volume'].resample('D').sum()
-# 
-#     # Price chart
-#     axes[idx, 0].plot(daily_close.index, daily_close.values, linewidth=1.5)
-#     axes[idx, 0].set_ylabel('Price (USD)')
-#     axes[idx, 0].set_title(f'{symbol} - Daily Close Price')
-#     axes[idx, 0].grid(alpha=0.3)
-# 
-#     # Volume chart
-#     axes[idx, 1].bar(daily_volume.index, daily_volume.values/1e6, alpha=0.7)
-#     axes[idx, 1].set_ylabel('Volume (M USD)')
-#     axes[idx, 1].set_title(f'{symbol} - Daily Trading Volume')
-#     axes[idx, 1].grid(alpha=0.3)
-# 
-#     if idx == len(SYMBOLS) - 1:
-#         axes[idx, 0].set_xlabel('Date')
-#         axes[idx, 1].set_xlabel('Date')
-# 
-# plt.tight_layout()
-# plt.show()
-# 
-# print("\n✓ Visualization complete - Notice liquidity differences across symbols")
-# 
-# Next Steps
-# """
-# Transform this tick data into information-driven bars:
-# - Dollar bars
-# - Volume bars
-# - Tick imbalance bars
-# 
-# ---
-# Author: James Eggleston
-# Date: October 2025
-# """
+

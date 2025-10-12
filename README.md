@@ -24,6 +24,8 @@ data_science_demo/
 ├── requirements.txt                   # Python dependencies
 ├── .gitignore                         # Exclude data files
 │
+├── finML_book/                        # Completed chapters from Financial ML by De Prado, learn first then apply
+│
 ├── notebooks/
 │    ├── 01_data_collection.ipynb      # ✅ Tick data collection from Binance 
 │    └── 02_information_bars.ipynb     # ✅ Better statiscical properties
@@ -85,10 +87,32 @@ jupyter lab
 
 **Option 2: Using Python Script** (Automated/production)
 ```bash
+# Default: 4 symbols, 3 months
 python src/data_collection.py
+
+# Custom: single symbol, 12 months
+python src/data_collection.py --symbols BTCUSDT --months 12
+
+# Custom: multiple symbols, 6 months
+python src/data_collection.py --symbols BTCUSDT ETHUSDT SOLUSDT --months 6
+
+# Custom output directory
+python src/data_collection.py --symbols BTCUSDT --months 12 --output-dir custom_data
+
+# Skip validation step (faster)
+python src/data_collection.py --symbols BTCUSDT --months 12 --skip-validation
+
+# View all options
+python src/data_collection.py --help
 ```
 
-This collects 3 months of tick-level trade data for 4 assets with different liquidity profiles:
+**Command-line arguments:**
+- `--symbols` - Symbols to collect (default: BTCUSDT ETHUSDT SOLUSDT POWRUSDT)
+- `--months` - Number of months to collect (default: 3)
+- `--output-dir` - Output directory for data (default: binance_raw_data)
+- `--skip-validation` - Skip the data validation step at the end
+
+**Default collection:** 3 months of tick-level trade data for 4 assets with different liquidity profiles:
 - **BTCUSDT** - High liquidity (~100k trades/day)
 - **ETHUSDT** - High liquidity (~80k trades/day)
 - **SOLUSDT** - Medium liquidity (~30k trades/day)
@@ -97,7 +121,7 @@ This collects 3 months of tick-level trade data for 4 assets with different liqu
 **Features:**
 - Incremental collection (resume from interruptions)
 - Rate limiting and error handling
-- Saves to `binance_raw_data/*.parquet`
+- Saves to `binance_raw_data/{SYMBOL}/YYYY-MM-DD.parquet` (daily files)
 
 ### Data Processing - Information-Driven Bars
 
