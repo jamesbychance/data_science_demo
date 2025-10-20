@@ -177,13 +177,12 @@ Information-driven bars (4-8) provide superior statistical properties compared t
 - **Part 1: Data Collection** - Automated ETL pipeline collecting 2M+ trades across 4 assets
 - **Part 2: Data Transformation** - Implementation of different information-driven bar types
 
-
 ## Future Plans
 
 The following sections from the project roadmap will be implemented:
 
-### Feature engineering and analysis
-### Multi-Asset analysis
+- **Feature engineering and analysis**
+- **Multi-Asset analysis**
 
 ## Key References
 
