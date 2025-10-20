@@ -24,11 +24,11 @@ data_science_demo/
 ├── requirements.txt                   # Python dependencies
 ├── .gitignore                         # Exclude data files
 │
-├── finML_book/                        # Completed chapters from Financial ML by De Prado, learn first then apply
-│
-├── notebooks/
-│    ├── 01_data_collection.ipynb      # ✅ Tick data collection from Binance 
-│    └── 02_information_bars.ipynb     # ✅ Better statiscical properties
+├── notebooks/                         # Jupyter notebooks for learning and analysis
+│    ├── Ch2_info_bars_BTC.ipynb       # Financial ML Chapter 2: Information bars for BTC
+│    ├── Ch2_info_bars_ETH.ipynb       # Financial ML Chapter 2: Information bars for ETH
+│    ├── Ch2_info_bars_SOL.ipynb       # Financial ML Chapter 2: Information bars for SOL
+│    └── Ch2_info_bars_POWR.ipynb      # Financial ML Chapter 2: Information bars for POWR
 │
 ├── src/                               # Production-ready scripts
 │   ├── data_collection.py             # Automated data collection
@@ -175,7 +175,7 @@ Information-driven bars (4-8) provide superior statistical properties compared t
 
 ### ✅ Completed
 - **Part 1: Data Collection** - Automated ETL pipeline collecting 2M+ trades across 4 assets
-- **Part 2: Data Transformation** - Implementation of 7 different information-driven bar types
+- **Part 2: Data Transformation** - Implementation of different information-driven bar types
 
 
 ## Future Plans
