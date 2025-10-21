@@ -113,10 +113,10 @@ python src/data_collection.py --help
 - `--skip-validation` - Skip the data validation step at the end
 
 **Default collection:** 3 months of tick-level trade data for 4 assets with different liquidity profiles:
-- **BTCUSDT** - High liquidity (~100k trades/day)
-- **ETHUSDT** - High liquidity (~80k trades/day)
-- **SOLUSDT** - Medium liquidity (~30k trades/day)
-- **POWRUSDT** - Low liquidity (~10k trades/day)
+- **BTCUSDT** - High liquidity (~1.4M trades/day)
+- **ETHUSDT** - High liquidity (~1.5M trades/day)
+- **SOLUSDT** - Medium liquidity (~500k trades/day)
+- **POWRUSDT** - Low liquidity (~9k trades/day)
 
 **Features:**
 - Incremental collection (resume from interruptions)
@@ -174,7 +174,7 @@ Information-driven bars (4-8) provide superior statistical properties compared t
 ## Current Status
 
 ### ✅ Completed
-- **Part 1: Data Collection** - Automated ETL pipeline collecting 2M+ trades across 4 assets
+- **Part 1: Data Collection** - Automated ETL pipeline collecting 1.13B+ tick-level trades across 4 assets (366 days BTC, 288 days ETH, 390 days SOL/POWR)
 - **Part 2: Data Transformation** - Implementation of different information-driven bar types
 
 ## Future Plans
