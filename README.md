@@ -1,6 +1,6 @@
-# Data Science Demo
+# Quantitative Finance Pipeline: Data Curation & Feature Engineering
 
-End-to-end quantitative research pipeline transforming raw cryptocurrency market data into ML-ready features. Demonstrates advanced ETL capabilities, market microstructure analysis, and information-driven data sampling techniques from *Advances in Financial Machine Learning* by Marcos López de Prado.
+Technical demonstration of institutional-grade quantitative research infrastructure, implementing Stations 1-2 of the systematic trading assembly line as described in *Advances in Financial Machine Learning* by Marcos López de Prado. This repository showcases advanced market microstructure data processing, information-driven sampling techniques, and statistical feature engineering applied to cryptocurrency markets.
 
 ## What This Project Does
 
@@ -16,6 +16,36 @@ This project solves a fundamental problem in quantitative trading: **traditional
 - Risk management and volatility prediction
 - Systematic trading strategy development
 
+## Scope & Context
+
+This repository demonstrates the **first two stations** of a complete quantitative trading assembly line:
+
+### **Station 1: Data Curation** (Chapter 1)
+- High-frequency tick-level data collection from Binance API
+- ETL pipeline handling 1.13B+ trade events across multiple assets
+- Data validation, cleaning, and indexing
+- Market microstructure awareness (liquidity profiles, tick sizes)
+
+### **Station 2: Feature Engineering** (Chapter 2 - Partial)
+- Information-driven bar construction (tick, volume, dollar bars)
+- Advanced sampling methods (imbalance bars, runs bars)
+- Statistical property analysis and threshold calibration
+- Transformation of raw ticks into structured features
+
+**Not Yet Implemented** (remaining Station 2 work):
+- Volatility estimation using EWMSTD (Exponentially Weighted Moving Standard Deviation)
+- Triple barrier labeling method for ML classification
+- Fractionally differentiated features
+- Additional microstructure features (VPIN, order flow imbalance, etc.)
+
+### **Subsequent Stations** (Private Development)
+The complete quantitative research pipeline includes three additional stations beyond this demonstration:
+- **Station 3: Strategy Development** - Transformation of features into investment algorithms
+- **Station 4: Backtesting & Validation** - Historical performance simulation and overfitting analysis
+- **Station 5: Deployment & Production** - Low-latency implementation with vectorization and parallel computing
+
+This public repository focuses on foundational data infrastructure, demonstrating technical competencies in market microstructure, distributed data processing, and statistical feature engineering that form the basis of systematic trading research.
+
 ## Project Structure
 
 ```
@@ -25,28 +55,46 @@ data_science_demo/
 ├── .gitignore                         # Exclude data files
 │
 ├── notebooks/                         # Jupyter notebooks for learning and analysis
-│    ├── Ch2_info_bars_BTC.ipynb       # Financial ML Chapter 2: Information bars for BTC
-│    ├── Ch2_info_bars_ETH.ipynb       # Financial ML Chapter 2: Information bars for ETH
-│    ├── Ch2_info_bars_SOL.ipynb       # Financial ML Chapter 2: Information bars for SOL
-│    └── Ch2_info_bars_POWR.ipynb      # Financial ML Chapter 2: Information bars for POWR
+│   ├── Ch1_overview.ipynb             # Chapter 1: Overview of financial ML
+│   ├── Ch2_info_bars_BTC_polars.ipynb # Chapter 2: BTC information bars (polars)
+│   ├── Ch2_info_bars_ETH_polars.ipynb # Chapter 2: ETH information bars (polars)
+│   ├── Ch2_info_bars_SOL_polars.ipynb # Chapter 2: SOL information bars (polars)
+│   ├── Ch2_info_bars_POWR_polars.ipynb # Chapter 2: POWR information bars (polars)
+│   ├── Ch2_info_bar_*.pdf             # Exported PDF analysis reports
+│   └── superseded/                    # Archived notebook versions
 │
 ├── src/                               # Production-ready scripts
 │   ├── data_collection.py             # Automated data collection
 │   ├── standard_bars.py               # Tick/volume/dollar bars
 │   ├── imbalance_bars.py              # Tick/volume/dollar imbalance bars
 │   ├── runs_bars.py                   # Tick/volume/dollar runs bars
-│   └── utils/
-│       ├── bar_utils.py               # Shared bar construction utilities
-│       └── data_loader.py             # Data loading utilities
+│   ├── utils/                         # Shared utilities
+│   │   ├── bar_utils.py               # Bar construction utilities
+│   │   └── data_loader.py             # Data loading utilities
+│   └── superseded/                    # Legacy code versions
 │
 ├── binance_raw_data/                  # Raw tick data (not in git)
-│   ├── BTCUSDT_2m.parquet
-│   ├── ETHUSDT_2m.parquet
-│   ├── SOLUSDT_2m.parquet
-│   └── POWRUSDT_2m.parquet
+│   ├── BTCUSDT/                       # Daily parquet files by symbol
+│   ├── ETHUSDT/
+│   ├── SOLUSDT/
+│   └── POWRUSDT/
 │
-└── processed_data/                    # Transformed bars (not in git)
-    └── *_bars.parquet
+├── processed_bars/                    # Processed information-driven bars (not in git)
+│   ├── BTCUSDT/
+│   │   ├── tick_bars_YYYYMMDD_YYYYMMDD.parquet
+│   │   ├── volume_bars_YYYYMMDD_YYYYMMDD.parquet
+│   │   └── dollar_bars_YYYYMMDD_YYYYMMDD.parquet
+│   ├── ETHUSDT/
+│   ├── SOLUSDT/
+│   └── POWRUSDT/
+│
+├── threshold_configs/                 # Bar threshold calibrations
+│   └── {symbol}_thresholds_polars.json
+│
+└── superseded/                        # Archive of superseded files
+    ├── notebooks/
+    ├── processed_data/                # Old pandas-based bars
+    └── TODOs.md
 ```
 
 ## Setup Instructions
@@ -156,7 +204,7 @@ python src/runs_bars.py SOLUSDT --days 7
 
 **Available Symbols:** BTCUSDT, ETHUSDT, SOLUSDT, POWRUSDT
 
-All processed bars are saved to `processed_data/{SYMBOL}_{bar_type}.parquet`
+All processed bars are saved to `processed_bars/{SYMBOL}/{bar_type}_{start_date}_{end_date}.parquet`
 
 ### Understanding the Bar Types
 
@@ -171,18 +219,54 @@ All processed bars are saved to `processed_data/{SYMBOL}_{bar_type}.parquet`
 
 Information-driven bars (4-8) provide superior statistical properties compared to time bars for machine learning applications.
 
-## Current Status
+## Technical Highlights
 
-### ✅ Completed
-- **Part 1: Data Collection** - Automated ETL pipeline collecting 1.13B+ tick-level trades across 4 assets (366 days BTC, 288 days ETH, 390 days SOL/POWR)
-- **Part 2: Data Transformation** - Implementation of different information-driven bar types
+This demonstration showcases several institutional-grade capabilities:
 
-## Future Plans
+### Data Engineering
+- **Scale**: 1.13B+ tick-level trades processed (366 days BTC, 288 days ETH, 390 days SOL/POWR)
+- **ETL Architecture**: Incremental collection with rate limiting, error handling, and resume-from-interruption
+- **Storage Format**: Parquet columnar storage for efficient analytical queries
+- **Multi-Asset Handling**: Cross-liquidity analysis from high-liquidity (BTC: 1.4M trades/day) to low-liquidity (POWR: 9k trades/day) markets
 
-The following sections from the project roadmap will be implemented:
+### Statistical Feature Engineering
+- **9 Bar Types Implemented**: Time, tick, volume, dollar, tick/volume/dollar imbalance, tick/volume/dollar runs
+- **Adaptive Thresholds**: Dynamic calibration based on Exponentially Weighted Moving Average (EWMA)
+- **Statistical Validation**: Normality tests, variance stability analysis, serial correlation testing
+- **Performance**: Polars-based implementation processing 1M+ ticks per second
 
-- **Feature engineering and analysis**
-- **Multi-Asset analysis**
+### Code Quality
+- Production-ready Python modules with separation of concerns
+- Comprehensive Jupyter notebooks demonstrating methodology and analysis
+- Automated threshold configuration persistence
+- Modular design enabling easy extension to additional bar types or assets
+
+## Next Steps for Extension
+
+This repository provides foundational infrastructure for quantitative research. To build a complete pipeline, the following extensions would be natural next steps:
+
+### Completing Station 2 (Feature Engineering)
+1. **Labeling Methods** (Chapter 3)
+   - Triple barrier method for classification labels
+   - Meta-labeling for position sizing
+   - Trend-scanning labels
+
+2. **Volatility Estimation** (Chapter 3)
+   - EWMSTD (Exponentially Weighted Moving Standard Deviation)
+   - Parkinson's high-low volatility estimator
+   - Dynamic threshold adaptation based on volatility regimes
+
+3. **Advanced Features** (Chapters 4-9)
+   - Fractional differentiation for stationarity
+   - Microstructure features (VPIN, Kyle's lambda, order flow imbalance)
+   - Entropy-based features
+   - Structural breaks detection
+
+### Station 3-5 Implementation
+- Strategy formulation and hypothesis testing
+- Walk-forward backtesting with purging and embargo
+- Combinatorial Purged Cross-Validation (CPCV)
+- Low-latency production deployment
 
 ## Key References
 

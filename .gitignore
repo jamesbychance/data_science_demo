@@ -209,6 +209,8 @@ __marimo__/
 # ADDED by developer
 binance_raw_data/
 processed_data/
+processed_bars/
 project_plan.md
 src/superseded/
 superseded/
+*.pdf

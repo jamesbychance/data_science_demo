@@ -1,0 +1,7 @@
+{
+  "tick_threshold": 110240,
+  "volume_threshold": 43824.04533449596,
+  "dollar_threshold": 132443457.78692584,
+  "target_bars": 5000,
+  "data_span_days": 391
+}
