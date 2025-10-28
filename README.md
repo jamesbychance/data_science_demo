@@ -1,4 +1,4 @@
-# Quantitative Finance Pipeline: Data Curation & Feature Engineering
+# Quantitative Finance Pipeline: Data Curation
 
 Technical demonstration of institutional-grade quantitative research infrastructure, sharing only Station 1 of the systematic trading assembly line. This repository showcases advanced market microstructure data processing and information-driven sampling techniques applied to cryptocurrency markets.
 
@@ -9,12 +9,6 @@ This project solves a fundamental problem in quantitative trading: **traditional
 1. **Collects raw tick-level trade data** from Binance at millisecond precision
 2. **Transforms tick data into information-driven bars** (dollar bars, volume bars, imbalance bars, runs bars)
 3. **Raw data ready for feature engineering** revealing market microstructure that has superior statistical properties for prediction models
-
-**Why this matters:** Information-driven bars provide better statistical properties (closer to normality, more stable variance) compared to time bars, leading to more robust machine learning models for:
-- Price prediction and return forecasting
-- Market regime detection (trending vs mean-reverting states)
-- Risk management and volatility prediction
-- Systematic trading strategy development
 
 ## Scope & Context
 
@@ -33,8 +27,6 @@ The complete quantitative research pipeline includes four additional stations be
 - **Station 4: Backtesting & Validation** - Historical performance simulation and overfitting analysis
 - **Station 5: Deployment & Production** - Low-latency implementation with vectorization and parallel computing
 
-This public repository focuses on foundational data infrastructure, demonstrating technical competencies in market microstructure, distributed data processing, and statistical feature engineering that form the basis of systematic trading research.
-
 ## Project Structure
 
 ```
@@ -42,26 +34,8 @@ data_science_demo/
 ├── README.md                          # This file
 ├── requirements.txt                   # Python dependencies
 ├── .gitignore                         # Exclude data files
-│
 ├── notebooks/                         # Jupyter notebooks for learning and analysis
-│   ├── Ch1_overview.ipynb             # Chapter 1: Overview of financial ML
-│   ├── Ch2_info_bars_BTC_polars.ipynb # Chapter 2: BTC information bars (polars)
-│   ├── Ch2_info_bars_ETH_polars.ipynb # Chapter 2: ETH information bars (polars)
-│   ├── Ch2_info_bars_SOL_polars.ipynb # Chapter 2: SOL information bars (polars)
-│   ├── Ch2_info_bars_POWR_polars.ipynb # Chapter 2: POWR information bars (polars)
-│   ├── Ch2_info_bar_*.pdf             # Exported PDF analysis reports
-│   └── superseded/                    # Archived notebook versions
-│
 ├── src/                               # Production-ready scripts
-│   ├── data_collection.py             # Automated data collection
-│   ├── standard_bars.py               # Tick/volume/dollar bars
-│   ├── imbalance_bars.py              # Tick/volume/dollar imbalance bars
-│   ├── runs_bars.py                   # Tick/volume/dollar runs bars
-│   ├── utils/                         # Shared utilities
-│   │   ├── bar_utils.py               # Bar construction utilities
-│   │   └── data_loader.py             # Data loading utilities
-│   └── superseded/                    # Legacy code versions
-│
 ├── binance_raw_data/                  # Raw tick data (not in git)
 │   ├── BTCUSDT/                       # Daily parquet files by symbol
 │   ├── ETHUSDT/
@@ -77,13 +51,7 @@ data_science_demo/
 │   ├── SOLUSDT/
 │   └── POWRUSDT/
 │
-├── threshold_configs/                 # Bar threshold calibrations
-│   └── {symbol}_thresholds_polars.json
-│
-└── superseded/                        # Archive of superseded files
-    ├── notebooks/
-    ├── processed_data/                # Old pandas-based bars
-    └── TODOs.md
+└── threshold_configs/                 # Bar threshold calibrations
 ```
 
 ## Setup Instructions
@@ -104,13 +72,6 @@ source .venv/bin/activate
 ```bash
 pip install -r requirements.txt
 ```
-
-**Dependencies:**
-- `requests` - API calls to Binance
-- `pandas` - Data manipulation
-- `pyarrow` - Parquet file format
-- `matplotlib` - Visualisation
-- `jupyterlab` - Interactive notebooks
 
 ## How to Use
 
@@ -155,9 +116,7 @@ python src/data_collection.py --help
 - **SOLUSDT** - Medium liquidity (~500k trades/day)
 - **POWRUSDT** - Low liquidity (~9k trades/day)
 
-**Features:**
-- Incremental collection (resume from interruptions)
-- Rate limiting and error handling
+**Directory location:**
 - Saves to `binance_raw_data/{SYMBOL}/YYYY-MM-DD.parquet` (daily files)
 
 ### Data Processing - Information-Driven Bars
