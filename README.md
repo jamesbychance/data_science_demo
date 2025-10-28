@@ -28,7 +28,7 @@ This repository demonstrates the **first station** of a complete quantitative tr
 
 ### **Subsequent Stations** (Private Development)
 The complete quantitative research pipeline includes four additional stations beyond this demonstration:
-- *Station 2: Feature Engineering* - Converts non-stationary and non-IID data into ML ready features
+- **Station 2: Feature Engineering** - Converts non-stationary and non-IID data into ML ready features
 - **Station 3: Strategy Development** - Transformation of features into investment algorithms
 - **Station 4: Backtesting & Validation** - Historical performance simulation and overfitting analysis
 - **Station 5: Deployment & Production** - Low-latency implementation with vectorization and parallel computing
