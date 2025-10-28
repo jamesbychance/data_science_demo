@@ -110,12 +110,6 @@ python src/data_collection.py --help
 - `--output-dir` - Output directory for data (default: binance_raw_data)
 - `--skip-validation` - Skip the data validation step at the end
 
-**Default collection:** 3 months of tick-level trade data for 4 assets with different liquidity profiles:
-- **BTCUSDT** - High liquidity (~1.4M trades/day)
-- **ETHUSDT** - High liquidity (~1.5M trades/day)
-- **SOLUSDT** - Medium liquidity (~500k trades/day)
-- **POWRUSDT** - Low liquidity (~9k trades/day)
-
 **Directory location:**
 - Saves to `binance_raw_data/{SYMBOL}/YYYY-MM-DD.parquet` (daily files)
 
