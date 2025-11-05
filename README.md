@@ -1,4 +1,4 @@
-# Quantitative Finance Pipeline: Data Curation
+# Alpha Generation Pipeline: Data Curation
 
 Technical demonstration of institutional-grade quantitative research infrastructure, sharing only Station 1 of the systematic trading assembly line. This repository showcases advanced market microstructure data processing and information-driven sampling techniques applied to cryptocurrency markets.
 
